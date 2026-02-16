@@ -1,5 +1,21 @@
-.venv/
-.env
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Python compiled files
 __pycache__/
-*.pyc
-requirements.txt
+*.py[cod]
+*$py.class
+
+# Environment variables (Crucial for security)
+.env
+.flaskenv
+
+# Database files (if using local sqlite)
+*.sqlite3
+*.db
+
+# VS Code and System junk
+.vscode/
+.DS_Store
