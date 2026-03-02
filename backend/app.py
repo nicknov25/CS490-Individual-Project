@@ -26,7 +26,105 @@ def health():
 # EXISTING CUSTOMER ENDPOINT
 @app.get("/api/customers")
 def list_customers():
-    pass 
+    try:
+        page = int(request.args.get("page", "1"))
+        page_size = int(request.args.get("page_size", "20"))
+    except ValueError:
+        return jsonify({"error": "page and page_size must be integers"}), 400
+
+    if page < 1 or page_size < 1 or page_size > 100:
+        return jsonify({"error": "page must be >= 1 and page_size must be between 1 and 100"}), 400
+
+    search = request.args.get("q", "").strip()
+    search_type = request.args.get("type", "").strip().lower()
+
+    where_clause = ""
+    params = []
+
+    if search:
+        if search_type == "customer_id":
+            if not search.isdigit():
+                return jsonify({"error": "customer_id must be a number"}), 400
+            where_clause = "WHERE customer_id = %s"
+            params.append(int(search))
+        elif search_type == "first_name":
+            where_clause = "WHERE first_name LIKE %s"
+            params.append(f"%{search}%")
+        elif search_type == "last_name":
+            where_clause = "WHERE last_name LIKE %s"
+            params.append(f"%{search}%")
+        else:
+            where_clause = "WHERE first_name LIKE %s OR last_name LIKE %s"
+            params.extend([f"%{search}%", f"%{search}%"])
+
+    offset = (page - 1) * page_size
+
+    conn = get_conn()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        count_sql = f"SELECT COUNT(*) AS total FROM customer {where_clause}"
+        cursor.execute(count_sql, params)
+        total = cursor.fetchone()["total"]
+
+        data_sql = f"""
+            SELECT customer_id, first_name, last_name, email, active, create_date
+            FROM customer
+            {where_clause}
+            ORDER BY customer_id
+            LIMIT %s OFFSET %s
+        """
+        cursor.execute(data_sql, params + [page_size, offset])
+        customers = cursor.fetchall()
+
+        return jsonify({
+            "data": customers,
+            "page": page,
+            "page_size": page_size,
+            "total": total
+        })
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.post("/api/customers")
+def add_customer():
+    data = request.json or {}
+    first_name = (data.get("first_name") or "").strip()
+    last_name = (data.get("last_name") or "").strip()
+    email = (data.get("email") or "").strip() or None
+    address_id = data.get("address_id")
+    store_id = data.get("store_id", 1)
+    active = data.get("active", 1)
+
+    if not first_name or not last_name:
+        return jsonify({"error": "first_name and last_name are required"}), 400
+
+    if address_id is None:
+        return jsonify({"error": "address_id is required"}), 400
+
+    try:
+        address_id = int(address_id)
+        store_id = int(store_id)
+        active = int(active)
+    except ValueError:
+        return jsonify({"error": "address_id, store_id, and active must be integers"}), 400
+
+    conn = get_conn()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        insert_sql = """
+            INSERT INTO customer (store_id, first_name, last_name, email, address_id, active, create_date, last_update)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+        """
+        cursor.execute(insert_sql, (store_id, first_name, last_name, email, address_id, active))
+        conn.commit()
+        return jsonify({"customer_id": cursor.lastrowid})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 # NEW FILMS ENDPOINTS
 
