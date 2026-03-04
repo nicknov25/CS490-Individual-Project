@@ -67,7 +67,7 @@ def list_customers():
         total = cursor.fetchone()["total"]
 
         data_sql = f"""
-            SELECT customer_id, first_name, last_name, email, active, create_date
+            SELECT customer_id, first_name, last_name, email, address_id, store_id, active, create_date
             FROM customer
             {where_clause}
             ORDER BY customer_id
@@ -125,6 +125,100 @@ def add_customer():
     finally:
         cursor.close()
         conn.close()
+
+# --- NEW ENDPOINTS FOR CUSTOMER MANAGEMENT ---
+
+@app.put("/api/customers/<int:customer_id>")
+def update_customer(customer_id):
+    data = request.json or {}
+    first_name = (data.get("first_name") or "").strip()
+    last_name = (data.get("last_name") or "").strip()
+    email = (data.get("email") or "").strip() or None
+    address_id = data.get("address_id")
+    store_id = data.get("store_id")
+    active = data.get("active")
+
+    if not first_name or not last_name or address_id is None:
+        return jsonify({"error": "first_name, last_name, and address_id are required"}), 400
+
+    conn = get_conn()
+    cursor = conn.cursor()
+    try:
+        update_sql = """
+            UPDATE customer 
+            SET first_name=%s, last_name=%s, email=%s, address_id=%s, store_id=%s, active=%s, last_update=NOW()
+            WHERE customer_id=%s
+        """
+        cursor.execute(update_sql, (first_name, last_name, email, address_id, store_id, active, customer_id))
+        conn.commit()
+        return jsonify({"message": "Customer updated successfully"})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.delete("/api/customers/<int:customer_id>")
+def delete_customer(customer_id):
+    conn = get_conn()
+    cursor = conn.cursor()
+    try:
+        # Note: This might fail if the customer has rental history due to FK constraints.
+        # Handling foreign keys typically requires soft-deletes (active=0) or cascading deletes.
+        # Given the requirements, we attempt a delete.
+        delete_sql = "DELETE FROM customer WHERE customer_id = %s"
+        cursor.execute(delete_sql, (customer_id,))
+        conn.commit()
+        return jsonify({"message": "Customer deleted successfully"})
+    except mysql.connector.Error as err:
+        conn.rollback()
+        if err.errno == 1451: # Foreign key constraint fails
+            return jsonify({"error": "Cannot delete customer because they have rental history. Mark them inactive instead."}), 409
+        return jsonify({"error": str(err)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.get("/api/customers/<int:customer_id>/rentals")
+def get_customer_rentals(customer_id):
+    conn = get_conn()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        sql = """
+            SELECT r.rental_id, r.rental_date, r.return_date, f.title
+            FROM rental r
+            JOIN inventory i ON r.inventory_id = i.inventory_id
+            JOIN film f ON i.film_id = f.film_id
+            WHERE r.customer_id = %s
+            ORDER BY r.rental_date DESC
+        """
+        cursor.execute(sql, (customer_id,))
+        rentals = cursor.fetchall()
+        return jsonify(rentals)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.put("/api/rentals/<int:rental_id>/return")
+def return_movie(rental_id):
+    conn = get_conn()
+    cursor = conn.cursor()
+    try:
+        update_sql = "UPDATE rental SET return_date = NOW() WHERE rental_id = %s"
+        cursor.execute(update_sql, (rental_id,))
+        conn.commit()
+        return jsonify({"message": "Movie returned successfully"})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+# --- END NEW ENDPOINTS ---
 
 # NEW FILMS ENDPOINTS
 
