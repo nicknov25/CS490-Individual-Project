@@ -222,57 +222,68 @@ def return_movie(rental_id):
 
 # NEW FILMS ENDPOINTS
 
+# In backend/app.py, REPLACE the existing search_films function with this:
+
 @app.get("/api/films")
 def search_films():
+    try:
+        page = int(request.args.get("page", "1"))
+        page_size = int(request.args.get("page_size", "20"))
+    except ValueError:
+        return jsonify({"error": "page and page_size must be integers"}), 400
+
+    offset = (page - 1) * page_size
     query = request.args.get("q", "")
     search_type = request.args.get("type", "title")  # title, actor, genre
     
     conn = get_conn()
     cursor = conn.cursor(dictionary=True)
 
-    sql = """
-        SELECT 
-            f.film_id, f.title, f.description, f.release_year, 
-            f.rating, c.name as category, f.rental_rate, f.length
+    select_clause = """
+        SELECT f.film_id, f.title, f.description, f.release_year, 
+               f.rating, c.name as category, f.rental_rate, f.length
+    """
+    from_clause = """
         FROM film f
         JOIN film_category fc ON f.film_id = fc.film_id
         JOIN category c ON fc.category_id = c.category_id
     """
     
-    params = []
     where_clause = ""
+    params = []
 
-    if search_type == "title":
-        where_clause = " WHERE f.title LIKE %s"
-        params.append(f"%{query}%")
-        
-    elif search_type == "genre":
-        where_clause = " WHERE c.name LIKE %s"
-        params.append(f"%{query}%")
-
-    elif search_type == "actor":
-        sql = """
-            SELECT 
-                f.film_id, f.title, f.description, f.release_year, 
-                f.rating, c.name as category, f.rental_rate, f.length
-            FROM film f
-            JOIN film_category fc ON f.film_id = fc.film_id
-            JOIN category c ON fc.category_id = c.category_id
+    if search_type == "actor":
+        from_clause += """
             JOIN film_actor fa ON f.film_id = fa.film_id
             JOIN actor a ON fa.actor_id = a.actor_id
         """
         where_clause = " WHERE a.first_name LIKE %s OR a.last_name LIKE %s"
         params.append(f"%{query}%")
         params.append(f"%{query}%")
+    elif search_type == "title":
+        where_clause = " WHERE f.title LIKE %s"
+        params.append(f"%{query}%")
+    elif search_type == "genre":
+        where_clause = " WHERE c.name LIKE %s"
+        params.append(f"%{query}%")
 
-    final_sql = sql + where_clause + " LIMIT 50"
-    
-    cursor.execute(final_sql, params)
+    count_sql = f"SELECT COUNT(*) as total {from_clause} {where_clause}"
+    cursor.execute(count_sql, params)
+    total_rows = cursor.fetchone()['total']
+
+    data_sql = f"{select_clause} {from_clause} {where_clause} LIMIT %s OFFSET %s"
+    cursor.execute(data_sql, params + [page_size, offset])
     films = cursor.fetchall()
     
     cursor.close()
     conn.close()
-    return jsonify(films)
+    
+    return jsonify({
+        "data": films,
+        "page": page,
+        "page_size": page_size,
+        "total": total_rows
+    })
 
 @app.post("/api/rent")
 def rent_film():

@@ -86,16 +86,21 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-zinc-50 font-sans dark:bg-black">
       <header className="page-header relative flex items-center justify-center">
-        <h1 className="page-title">
-          <Link href="/pages/films">Movies</Link>
-        </h1>
-        <Link
-          href="/pages/customers"
-          className="absolute right-6 border border-white text-white hover:bg-black hover:text-white font-semibold py-2 px-4 rounded transition"
-        >
-          Customers
-        </Link>
-      </header>
+  <div className="flex gap-8 items-center"> 
+    <h1 className="page-title">
+      <Link href="/pages/films">Movies</Link>
+    </h1>
+    <h1 className="page-title">
+      <Link href="/pages/customers">Customers</Link>
+    </h1>
+  </div>
+  <Link
+    href="/pages/customers"
+    className="absolute right-6 border border-white text-white hover:bg-black hover:text-white font-semibold py-2 px-4 rounded transition"
+  >
+    Customers
+  </Link>
+</header>
 
       <main className="p-8">
         {loading ? (

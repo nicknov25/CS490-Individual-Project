@@ -16,21 +16,56 @@ interface Film {
 export default function FilmsPage() {
   const [query, setQuery] = useState("");
   const [searchType, setSearchType] = useState("title");
+  
+  // Pagination State
   const [films, setFilms] = useState<Film[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 20;
+
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
-  const [customerId, setCustomerId] = useState(""); // Simple input for customer ID
+  const [customerId, setCustomerId] = useState(""); 
   const [message, setMessage] = useState("");
 
-  // Search function
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const res = await fetch(`http://localhost:5000/api/films?q=${query}&type=${searchType}`);
-    const data = await res.json();
-    setFilms(data);
-    setSelectedFilm(null); // Clear selection on new search
+  // Fetch function handling pagination
+  const fetchFilms = async (searchQuery: string, type: string, pageNum: number) => {
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/films?q=${searchQuery}&type=${type}&page=${pageNum}&page_size=${pageSize}`
+      );
+      const data = await res.json();
+      
+      // Update state based on new response format { data, total, ... }
+      if (data.data) {
+        setFilms(data.data);
+        setTotal(data.total);
+      } else {
+        setFilms([]);
+        setTotal(0);
+      }
+      setSelectedFilm(null);
+    } catch (err) {
+      console.error("Failed to fetch films:", err);
+    }
   };
 
-  // Rent function
+  // Initial load and Page Change
+  useEffect(() => {
+    fetchFilms(query, searchType, page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]); 
+
+  // Search Button Handler
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    // If we are already on page 1, force a fetch, otherwise reset to page 1 (which triggers useEffect)
+    if (page === 1) {
+      fetchFilms(query, searchType, 1);
+    } else {
+      setPage(1);
+    }
+  };
+
   const handleRent = async () => {
     if (!selectedFilm || !customerId) {
       setMessage("Please enter a valid Customer ID.");
@@ -57,6 +92,8 @@ export default function FilmsPage() {
       setMessage("Failed to connect to server.");
     }
   };
+
+  const totalPages = Math.ceil(total / pageSize);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
@@ -108,9 +145,13 @@ export default function FilmsPage() {
 
       <div className="flex gap-8">
         {/* --- RESULTS LIST --- */}
-        <div className="w-1/2">
-          <h2 className="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">Search Results</h2>
-          <div className="space-y-2 h-[600px] overflow-y-auto pr-2">
+        <div className="w-1/2 flex flex-col h-[700px]">
+          <h2 className="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">
+            Search Results <span className="text-sm font-normal text-gray-400">({total} found)</span>
+          </h2>
+          
+          {/* Scrollable List */}
+          <div className="flex-1 overflow-y-auto pr-2 space-y-2 mb-4">
             {films.map((film) => (
               <div
                 key={film.film_id}
@@ -132,6 +173,29 @@ export default function FilmsPage() {
             ))}
             {films.length === 0 && <p className="text-gray-500 italic">No films found.</p>}
           </div>
+
+          {/* Pagination Controls */}
+          {total > 0 && (
+            <div className="flex justify-between items-center bg-gray-800 p-3 rounded border border-gray-700">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <span className="text-gray-300">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
 
         {/* --- DETAILS & RENTAL PANEL --- */}
