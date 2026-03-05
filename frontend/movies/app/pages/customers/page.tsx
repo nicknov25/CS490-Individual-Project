@@ -226,12 +226,20 @@ export default function CustomersPage() {
     <div className="min-h-screen bg-gray-900 text-white p-8 font-sans">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-yellow-400">Customers</h1>
-        <Link
-          href="/"
-          className="border border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-black font-bold py-2 px-4 rounded transition"
-        >
-          Back to Home
-        </Link>
+        <div className="flex gap-4">
+          <Link
+            href="/pages/films"
+            className="border border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-black font-bold py-2 px-4 rounded transition"
+          >
+            Movies
+          </Link>
+          <Link
+            href="/"
+            className="border border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-black font-bold py-2 px-4 rounded transition"
+          >
+            Back to Home
+          </Link>
+        </div>
       </div>
 
       <form onSubmit={handleSearch} className="flex flex-wrap gap-4 mb-6 bg-gray-800 p-4 rounded-lg">
